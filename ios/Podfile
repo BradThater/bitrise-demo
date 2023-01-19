@@ -14,14 +14,34 @@ target 'bitrisetest' do
   config = use_native_modules!
 
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
+  
+  pod 'AFNetworking', '~> 2.0'
+  pod 'BBBadgeBarButtonItem'
+  pod 'CAAnimation-EasingEquations'
+  pod 'DAKeyboardControl'
+  pod 'DateTools'
+  pod 'FrameAccessor'
+  pod 'JSONModel', '1.3.0'
+  pod 'KVOController', '1.0.3'
+  pod 'Masonry'
+  pod 'RMMapper', '1.1.1'
+  pod 'SnowplowTracker', '~> 1.7.0'
+  pod 'TTTAttributedLabel'
+  pod 'twitter-text-objc'
+  pod 'UIAlertController+Blocks'
+  pod 'Underscore.m', '0.2.1'
+  pod 'L10n-swift', '~> 5.9'
+  pod 'Nimble', '9.2.1'
+  pod 'Quick', '2.2.1'
+  pod 'SwiftDate', '5.1.0'
 
-  # Flags change depending on the env values.
-  flags = get_default_flags()
+  # React Native: unsupported autolinking
+  pod 'RNVectorIcons', :path => '../node_modules/react-native-vector-icons'
 
   use_react_native!(
     :path => config[:reactNativePath],
     :hermes_enabled => podfile_properties['expo.jsEngine'] == 'hermes',
-    :fabric_enabled => flags[:fabric_enabled],
+    :fabric_enabled => false,
     # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/..",
     #
@@ -31,23 +51,19 @@ target 'bitrisetest' do
   )
 
   post_install do |installer|
-    react_native_post_install(
-      installer,
-      # Set `mac_catalyst_enabled` to `true` in order to apply patches
-      # necessary for Mac Catalyst builds
-      :mac_catalyst_enabled => false
-    )
-    __apply_Xcode_12_5_M1_post_install_workaround(installer)
+    installer.pods_project.build_configurations.each do |config|
+        config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
+    end
 
-    # This is necessary for Xcode 14, because it signs resource bundles by default
-    # when building for devices.
-    installer.target_installation_results.pod_target_installation_results
-      .each do |pod_name, target_installation_result|
-      target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
-        resource_bundle_target.build_configurations.each do |config|
-          config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+    # This post install script was required to build on a physical device using Xcode 14 beta 6. It prevents a signing error for 2 pods (TUSafariActivity and React-Core-AccessibilityResources) which states a development team is needed for the pods. This script sets the development team for the pods to our development team ("Dataminr, Inc.").
+    # This may be an issue caused by the beta version of Xcode 14. If so, this script should be removed after Xcode 14 is out of beta.
+    team_id = `grep export-archive.plist -e 'teamID' -A1 | grep string | sed -e 's/<[^>]*>//g'`.strip
+    installer.generated_projects.each do |project|
+        project.targets.each do |target|
+            target.build_configurations.each do |config|
+                config.build_settings["DEVELOPMENT_TEAM"] = team_id
+            end
         end
-      end
     end
   end
 
